@@ -101,7 +101,7 @@ aside{border-right:1px solid var(--line);background:var(--panel);display:flex;fl
   </aside>
   <div class="chartwrap">
     <div id="chart"></div>
-    <div class="note">每条线都按当前可见区间单独缩放：区间内最高点为 1，最低点为 0（K线用最高价和最低价，折线用收盘价）。拖动下方滑块、在图上滚动滚轮或点上方按钮都能改变区间，缩放会随之重算。左侧数字是该板块在当前区间的实际涨跌幅（红涨绿跌），点"按涨幅排序"可以找出这段时间最强的板块。K线模式下空心为阳线、实心为阴线。中证全指为灰色虚线，作为市场参照。数据来源：申万宏源（申万行业指数）、东方财富（行业与概念板块、宽基指数）。</div>
+    <div class="note">每条线都按当前可见区间单独缩放：区间内最高点为 1，最低点为 0（K线用最高价和最低价，折线用收盘价）。拖动下方滑块、在图上滚动滚轮或点上方按钮都能改变区间，缩放会随之重算。左侧数字是该板块在当前区间的实际涨跌幅（红涨绿跌），点"按涨幅排序"可以找出这段时间最强的板块。K线模式下空心为阳线、实心为阴线。中证全指为灰色虚线，作为市场参照。数据来源：申万宏源（申万行业指数）、同花顺（行业与概念板块）、东方财富和腾讯（宽基指数）。</div>
   </div>
 </main>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/echarts/5.4.3/echarts.min.js"></script>
@@ -109,7 +109,7 @@ aside{border-right:1px solid var(--line);background:var(--panel);display:flex;fl
 (function(){
 const PALETTE=['#2a55c9','#d9822b','#8e44ad','#c0392b','#16a085','#b8860b','#e84393','#0f7ab8','#6d8b1f','#7f5539','#5b6bd6','#d35400'];
 const BENCH='idx_sh000985';
-const SUFFIX={'申万二级':'·申万二级','东财行业':'·东财','东财概念':'·概念'};
+const SUFFIX={'申万二级':'·申万二级','同花顺行业':'·同花顺','同花顺概念':'·概念'};
 const LS={get(k,d){try{const v=localStorage.getItem(k);return v==null?d:JSON.parse(v)}catch(e){return d}},
           set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}};
 const DEFAULT=[BENCH,'sw1_801780','sw1_801110','sw1_801080','sw1_801740'];

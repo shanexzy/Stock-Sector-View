@@ -15,12 +15,9 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  update:
+  build:
     runs-on: ubuntu-latest
     timeout-minutes: 120
-    environment:
-      name: github-pages
-      url: ${{ steps.deploy.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
 
@@ -46,7 +43,7 @@ jobs:
         uses: actions/cache/save@v4
         with:
           path: data/raw
-          key: raw-${{ github.run_id }}
+          key: raw-${{ github.run_id }}-${{ github.run_attempt }}
 
       - name: 生成网页数据
         run: python scripts/build.py
@@ -55,8 +52,6 @@ jobs:
       - uses: actions/upload-pages-artifact@v3
         with:
           path: _site
-      - id: deploy
-        uses: actions/deploy-pages@v4
 
       - name: 记录更新时间（保持仓库活跃，避免定时任务被 GitHub 停用）
         run: |
@@ -64,4 +59,15 @@ jobs:
           git config user.email "github-actions@users.noreply.github.com"
           git add last_update.txt
           git commit -m "update $(date +%F)" || echo "no change"
-          git push
+          git pull --rebase || true
+          git push || echo "push skipped"
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - id: deploy
+        uses: actions/deploy-pages@v4

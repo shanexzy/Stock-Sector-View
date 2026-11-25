@@ -7,7 +7,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 RAW = os.path.join(ROOT, 'data', 'raw')
 OUT = os.path.join(ROOT, '_site')
 RECENT = 750          # 左侧排行用的最近交易日数（约3年）
-ORDER = ['宽基指数', '申万一级', '申万二级', '东财行业', '东财概念']
+ORDER = ['宽基指数', '申万一级', '申万二级', '同花顺行业', '同花顺概念']
 
 def main():
     if os.path.exists(OUT): shutil.rmtree(OUT)

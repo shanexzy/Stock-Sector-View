@@ -3,8 +3,9 @@
 抓取板块与指数日线，增量写入 data/raw/<组>/<代码>.csv（列：date,open,high,low,close）。
 数据源：
   申万一级/二级  -> 申万宏源官网（akshare.index_hist_sw）
-  东财行业/概念  -> 东方财富 K 线接口（板块代码 BKxxxx）
-  宽基指数      -> 东方财富 K 线接口
+  同花顺行业/概念 -> 同花顺板块指数（akshare.stock_board_*_index_ths）
+  宽基指数      -> 东方财富 K 线接口（失败时用腾讯）
+  东方财富的板块K线会拦截海外服务器（2026-11-25 在 GitHub 上实测），所以板块用同花顺。
 本地和 GitHub Actions 都能跑：python scripts/fetch.py
 """
 import os, sys, time, json, datetime as dt
@@ -13,6 +14,8 @@ import pandas as pd, requests
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 RAW = os.path.join(ROOT, 'data', 'raw')
 START = '20140101'
+THS_CONCEPT_START = '20190101'   # 概念板块首次抓取从2019年起，控制第一次运行时长
+BUDGET_MIN = float(os.environ.get('FETCH_BUDGET_MIN', '80'))   # 单次运行最多抓多少分钟，没抓完的下次接着抓
 UA = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36',
       'Referer': 'https://quote.eastmoney.com/'}
 S = requests.Session(); S.headers.update(UA)
@@ -92,13 +95,32 @@ def sw_hist(code):
     df = ak.index_hist_sw(symbol=code, period='day')
     return df.rename(columns={'日期': 'date', '开盘': 'open', '最高': 'high', '最低': 'low', '收盘': 'close'})
 
+def tx_index(code, beg):
+    import akshare as ak
+    df = ak.index_zh_daily_tx(symbol=code)
+    df = df[df['date'].astype(str) >= pd.Timestamp(beg).strftime('%Y-%m-%d')]
+    return df
+
+def ths_hist(kind, name, beg):
+    import akshare as ak
+    end = dt.date.today().strftime('%Y%m%d')
+    fn = ak.stock_board_concept_index_ths if kind == 'thc' else ak.stock_board_industry_index_ths
+    df = fn(symbol=name, start_date=beg, end_date=end)
+    return df.rename(columns={'日期': 'date', '开盘价': 'open', '最高价': 'high', '最低价': 'low', '收盘价': 'close'})
+
 def main():
-    names, ok, fail = [], 0, []
+    names, ok, fail, skipped = [], 0, [], 0
     t0 = time.time()
+    over = lambda: (time.time() - t0) / 60 > BUDGET_MIN
 
     for secid, code, name in INDEXES:
+        beg = beg_for('idx', code)
         try:
-            n = save('idx', code, retry(em_kline, secid, beg_for('idx', code))); ok += 1
+            try:
+                df = retry(em_kline, secid, beg)
+            except Exception:
+                df = retry(tx_index, code, beg)
+            save('idx', code, df); ok += 1
             names.append(('宽基指数', 'idx', code, name, ''))
         except Exception as e:
             fail.append(f'idx {name}: {e}')
@@ -112,23 +134,32 @@ def main():
             names.append(('申万一级' if grp == 'sw1' else '申万二级', grp, r.code, r['name'], r.parent))
         except Exception as e:
             fail.append(f'{grp} {r["name"]}: {e}')
-        time.sleep(0.4)
+        time.sleep(0.3)
     log(f'申万 done ok={ok} fail={len(fail)} {time.time()-t0:.0f}s')
 
-    for grp, label, fs in [('emi', '东财行业', 'm:90+t:2'), ('emc', '东财概念', 'm:90+t:3')]:
+    import akshare as ak
+    for grp, label, lister, first in [('thi', '同花顺行业', ak.stock_board_industry_name_ths, START),
+                                      ('thc', '同花顺概念', ak.stock_board_concept_name_ths, THS_CONCEPT_START)]:
         try:
-            boards = retry(em_board_list, fs)
+            lst = retry(lister)
+            boards = list(zip(lst['code'].astype(str), lst['name'].astype(str)))
         except Exception as e:
             fail.append(f'{label} 列表: {e}'); boards = []
+        # 没抓过的排在后面，保证已有的每天都能更新
+        boards.sort(key=lambda b: last_date(grp, b[0]) is None)
         log(f'{label} {len(boards)} 个')
         for code, name in boards:
+            if over():
+                skipped += 1; continue
+            d = last_date(grp, code)
+            beg = first if not d else f'{pd.Timestamp(d).year}0101'
             try:
-                save(grp, code, retry(em_kline, f'90.{code}', beg_for(grp, code))); ok += 1
+                save(grp, code, retry(ths_hist, grp, name, beg)); ok += 1
                 names.append((label, grp, code, name, ''))
             except Exception as e:
                 fail.append(f'{grp} {name}: {e}')
-            time.sleep(0.25)
-        log(f'{label} done ok={ok} fail={len(fail)} {time.time()-t0:.0f}s')
+            time.sleep(0.3)
+        log(f'{label} done ok={ok} fail={len(fail)} skipped={skipped} {time.time()-t0:.0f}s')
 
     # 名称表：保留以前抓到过的（本次失败的也不丢）
     p = os.path.join(RAW, 'names.csv')
@@ -138,7 +169,7 @@ def main():
         new = pd.concat([old, new]).drop_duplicates(['group', 'code'], keep='last')
     new.to_csv(p, index=False)
 
-    log(f'完成：成功 {ok}，失败 {len(fail)}，用时 {time.time()-t0:.0f}s')
+    log(f'完成：成功 {ok}，失败 {len(fail)}，因时间预算留到下次 {skipped}，用时 {time.time()-t0:.0f}s')
     for f in fail[:30]: log('  失败', f)
     total = ok + len(fail)
     if total == 0 or ok / total < 0.5:

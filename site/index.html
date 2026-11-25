@@ -53,14 +53,59 @@ aside{border-right:1px solid var(--line);background:var(--panel);display:flex;fl
 .sw{width:10px;height:10px;border-radius:2px;background:transparent;border:1px solid var(--line)}
 .ret{font-family:var(--font-num);font-variant-numeric:tabular-nums;font-size:12px}
 .up{color:var(--up)} .dn{color:var(--down)}
-.chartwrap{display:flex;flex-direction:column;min-height:0;padding:8px 12px 4px}
-#chart{flex:1;min-height:360px}
+.chartwrap{display:flex;flex-direction:column;min-height:0;padding:8px 12px 4px;overflow:auto}
+#chart{flex:1 0 380px;min-height:380px}
+/* 发现面板 */
+.disc{border:1px solid var(--line);background:var(--panel);border-radius:8px;margin-bottom:8px;display:flex;flex-direction:column;max-height:42vh;min-height:0}
+.disc-head{display:flex;flex-wrap:wrap;align-items:center;gap:8px 14px;padding:8px 12px;border-bottom:1px solid var(--line)}
+.disc-head h2{font-size:14px;margin:0;font-weight:700}
+.mkt{font-size:12px;color:var(--muted);font-family:var(--font-num)}
+.chips{display:flex;gap:4px;flex-wrap:wrap}
+.chips button{padding:2px 8px;font-size:12px}
+.disc-body{overflow:auto;min-height:0}
+table.dt{border-collapse:collapse;width:100%;font-size:12.5px}
+.dt th{position:sticky;top:0;background:var(--panel);color:var(--muted);font-weight:500;text-align:right;padding:5px 8px;border-bottom:1px solid var(--line);white-space:nowrap;cursor:pointer}
+.dt th:first-child,.dt td:first-child{text-align:left}
+.dt td{padding:4px 8px;border-bottom:1px solid var(--line);text-align:right;font-family:var(--font-num);font-variant-numeric:tabular-nums;white-space:nowrap}
+.dt td.nm{font-family:var(--font-body)}
+.dt tr{cursor:pointer}
+.dt tbody tr:hover{background:var(--bg)}
+.dt tr.sel td.nm{font-weight:700}
+.dot{display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:6px;border:1px solid var(--line);vertical-align:middle}
+.grp-tag{color:var(--muted);font-size:11px;margin-left:6px}
+.pill{display:inline-block;font-family:var(--font-body);font-size:11px;padding:1px 6px;border-radius:10px;border:1px solid currentColor}
+.p-ni{color:var(--up)} .p-dl{color:#b8860b} .p-lz{color:var(--accent)} .p-kd{color:var(--muted)}
+.tr-up{color:var(--up)} .tr-dn{color:var(--down)}
+.focus-hint{font-size:12px;color:var(--accent);min-height:16px;padding:0 4px}
+.disc-foot{font-size:11.5px;color:var(--muted);padding:6px 12px;border-top:1px solid var(--line);line-height:1.6}
 .note{color:var(--muted);font-size:12px;padding:2px 4px 8px;line-height:1.6}
 #msg{color:var(--accent);font-size:12px;min-height:1em}
 .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+/* 手机：整页上下滚动；顺序 = 发现表 → 走势图 → 板块清单 */
+.dt th:first-child{z-index:2}
 @media (max-width:760px){
-  main{grid-template-columns:1fr;grid-template-rows:240px minmax(420px,1fr)}
-  aside{border-right:0;border-bottom:1px solid var(--line)}
+  html,body{height:auto}
+  body{display:block;font-size:13px}
+  header{padding:10px 12px;gap:8px 12px}
+  h1{font-size:16px}
+  .asof{font-size:11px}
+  header .grp button{padding:3px 8px}
+  input[type=date]{font-size:12px;padding:2px 4px}
+  main{display:flex;flex-direction:column}
+  .chartwrap{order:1;overflow:visible;padding:8px 8px 4px}
+  aside{order:2;border-right:0;border-top:1px solid var(--line)}
+  #list{max-height:65vh}
+  .disc{max-height:none}
+  .disc-head{padding:8px 10px;gap:6px 10px}
+  .disc-head h2{width:100%}
+  .disc-body{max-height:55vh}
+  .dt td,.dt th{padding:5px 6px}
+  .dt td:first-child,.dt th:first-child{position:sticky;left:0;background:var(--panel);z-index:1;max-width:118px;overflow:hidden;text-overflow:ellipsis}
+  .dt th:first-child{z-index:3}
+  .dt .grp-tag{display:block;margin-left:14px}
+  .hm{display:none}
+  #chart{flex:none;height:440px;min-height:0}
+  .disc-foot,.note{font-size:11px}
 }
 </style>
 </head>
@@ -100,8 +145,24 @@ aside{border-right:1px solid var(--line);background:var(--panel);display:flex;fl
     <div id="list"></div>
   </aside>
   <div class="chartwrap">
+    <section class="disc" aria-label="发现">
+      <div class="disc-head">
+        <h2>今天谁在逆着大盘走</h2>
+        <span class="mkt" id="mkt"></span>
+        <div class="chips" role="group" aria-label="统计周期" id="per">
+          <button data-l="5">近5日</button><button data-l="20" class="on">近20日</button><button data-l="60">近60日</button>
+        </div>
+        <div class="chips" role="group" aria-label="板块范围" id="scope"></div>
+        <div class="chips" role="group" aria-label="筛选" id="flt">
+          <button data-f="all" class="on">全部</button><button data-f="ni">逆市上涨</button><button data-f="dl">平淡中独涨</button><button data-f="lz">领涨</button><button data-f="up">刚冒头</button>
+        </div>
+      </div>
+      <div class="disc-body"><table class="dt"><thead><tr id="dth"></tr></thead><tbody id="dtb"></tbody></table></div>
+      <div class="disc-foot">超额 = 板块涨幅减中证全指涨幅。趋势比较现在的超额和半个周期前的超额：↑冒头表示在变强，↓退潮表示在变弱。跑赢天数 = 周期内单日跑赢大盘的天数占比，越高说明涨得越稳，不是靠一两天拉起来的。点一行就把它加进下面的走势图，再点一次移除。这张表只帮你发现，不预测之后还会不会涨。</div>
+    </section>
+    <div class="focus-hint" id="focusHint" aria-live="polite"></div>
     <div id="chart"></div>
-    <div class="note">每条线都按当前可见区间单独缩放：区间内最高点为 1，最低点为 0（K线用最高价和最低价，折线用收盘价）。拖动下方滑块、在图上滚动滚轮或点上方按钮都能改变区间，缩放会随之重算。左侧数字是该板块在当前区间的实际涨跌幅（红涨绿跌），点"按涨幅排序"可以找出这段时间最强的板块。K线模式下空心为阳线、实心为阴线。中证全指为灰色虚线，作为市场参照。数据来源：申万宏源（申万行业指数）、同花顺（行业与概念板块）、东方财富和腾讯（宽基指数）。</div>
+    <div class="note">每条线都按当前可见区间单独缩放：区间内最高点为 1，最低点为 0（K线用最高价和最低价，折线用收盘价）。拖动下方滑块、在图上滚动滚轮或点上方按钮都能改变区间，缩放会随之重算。左侧数字是该板块在当前区间的实际涨跌幅（红涨绿跌），点"按涨幅排序"可以找出这段时间最强的板块。K线模式下空心为阳线、实心为阴线。中证全指为灰色虚线，作为市场参照。点某条曲线可以高亮它、其他曲线变淡，再点一次或点空白处恢复。数据来源：申万宏源（申万行业指数）、同花顺（行业与概念板块）、东方财富和腾讯（宽基指数）。</div>
   </div>
 </main>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/echarts/5.4.3/echarts.min.js"></script>
@@ -116,7 +177,7 @@ const DEFAULT=[BENCH,'sw1_801780','sw1_801110','sw1_801080','sw1_801740'];
 let DATES=[], R0=0, SER=[], BYID={}, BYLABEL={}, RECENT={};
 let selected=new Set(LS.get('kl2_sel',DEFAULT));
 let mode=LS.get('kl_mode','line');
-let sortByRet=false; let win=[0,0];
+let sortByRet=false; let win=[0,0]; let focusId=null;
 const openGroups=new Set(LS.get('kl2_open',['宽基指数','申万一级']));
 const colorOf={};
 const chart=echarts.init(document.getElementById('chart'));
@@ -158,14 +219,16 @@ function buildSeries(){
   const out=[];
   SER.filter(s=>selected.has(s.id)&&s.c).forEach(s=>{
     const f=norm(s), col=colorFor(s.id), bench=s.id===BENCH;
+    const foc=focusId===s.id, dim=!!focusId&&!foc;
     if(mode==='candle' && !bench){
-      out.push({name:s.label,type:'candlestick',large:false,progressive:0,barWidth:'55%',barMaxWidth:14,
+      out.push({name:s.label,type:'candlestick',large:false,progressive:0,barWidth:'55%',barMaxWidth:14,z:foc?5:2,
         data:s.c.map((c,i)=>{const o=s.o[i]??c,h=s.h[i]??c,l=s.l[i]??c; return c==null?'-':[f(o),f(c),f(l),f(h)];}),
-        itemStyle:{color:'transparent',color0:col,borderColor:col,borderColor0:col,borderWidth:1.4}});
+        itemStyle:{color:'transparent',color0:col,borderColor:col,borderColor0:col,borderWidth:foc?2:1.4,opacity:dim?0.15:1}});
     } else {
-      out.push({name:s.label,type:'line',data:s.c.map(v=>{const x=f(v);return x==null?'-':x;}),showSymbol:false,connectNulls:false,
-        lineStyle:{width:bench?1.6:1.8,color:col,type:bench?'dashed':'solid'},itemStyle:{color:col},z:bench?1:2,
-        endLabel:{show:true,formatter:'{a}',color:col,fontSize:11}});
+      out.push({name:s.label,type:'line',data:s.c.map(v=>{const x=f(v);return x==null?'-':x;}),showSymbol:false,connectNulls:false,triggerLineEvent:true,
+        lineStyle:{width:foc?3.2:bench?1.6:1.8,color:col,type:bench?'dashed':'solid',opacity:dim?(bench?0.45:0.15):1},itemStyle:{color:col},z:foc?5:bench?1:2,
+        emphasis:{disabled:true},
+        endLabel:{show:true,formatter:'{a}',color:col,fontSize:innerWidth<=760?10:(foc?12:11),fontWeight:foc?'bold':'normal',opacity:dim?0.3:1}});
     }
   });
   return out;
@@ -173,10 +236,11 @@ function buildSeries(){
 
 function baseOption(){
   const ink=css('--ink'), muted=css('--muted'), line=css('--line'), acc=css('--accent');
+  const mob=innerWidth<=760;
   return {
     animation:false,
-    grid:{left:44,right:96,top:20,bottom:70},
-    tooltip:{trigger:'axis',axisPointer:{type:'cross',label:{backgroundColor:acc}},backgroundColor:css('--panel'),borderColor:line,textStyle:{color:ink,fontSize:12},
+    grid:{left:mob?34:44,right:mob?70:96,top:20,bottom:70},
+    tooltip:{trigger:'axis',confine:true,axisPointer:{type:mob?'line':'cross',label:{backgroundColor:acc}},backgroundColor:css('--panel'),borderColor:line,textStyle:{color:ink,fontSize:12},
       formatter:ps=>{ if(!ps.length) return ''; const i=ps[0].dataIndex; const rows=[];
         ps.forEach(p=>{ const s=BYLABEL[p.seriesName]; if(!s||!s.c||s.c[i]==null) return;
           const v=p.seriesType==='candlestick'?p.data[2]:p.data; const i0=firstIdx(s.c,win[0],win[1]); const r=i0>=0?s.c[i]/s.c[i0]-1:null;
@@ -185,7 +249,7 @@ function baseOption(){
         return `<div style="font-weight:600;margin-bottom:4px">${DATES[i]}</div>`+rows.map(r=>`<div style="display:flex;gap:10px;justify-content:space-between"><span><span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:${r.col};margin-right:6px"></span>${r.n}</span><span style="font-family:var(--font-num)">${r.v==null?'-':r.v.toFixed(2)} · ${r.c.toFixed(2)} · <span style="color:${r.r>=0?css('--up'):css('--down')}">${r.r==null?'':(r.r>=0?'+':'')+(r.r*100).toFixed(1)+'%'}</span></span></div>`).join('')+`<div style="color:${muted};margin-top:4px">位置 · 收盘 · 自区间起点涨跌</div>`;}},
     xAxis:{type:'category',data:DATES,boundaryGap:true,axisLine:{lineStyle:{color:line}},axisLabel:{color:muted},axisTick:{show:false},splitLine:{show:false}},
     yAxis:{type:'value',min:0,max:1,interval:0.25,axisLabel:{color:muted,formatter:v=>v.toFixed(2)},splitLine:{lineStyle:{color:line}}},
-    dataZoom:[{type:'inside',xAxisIndex:0,filterMode:'none',startValue:win[0],endValue:win[1]},
+    dataZoom:[{type:'inside',xAxisIndex:0,filterMode:'none',disabled:mob,startValue:win[0],endValue:win[1]},
               {type:'slider',xAxisIndex:0,filterMode:'none',startValue:win[0],endValue:win[1],height:26,bottom:18,borderColor:line,
                textStyle:{color:muted},fillerColor:'rgba(120,140,200,0.15)',handleStyle:{color:acc,borderColor:acc},
                dataBackground:{lineStyle:{color:muted,opacity:.4},areaStyle:{color:muted,opacity:.1}}}],
@@ -196,9 +260,9 @@ function baseOption(){
 function render(full){
   if(full) chart.setOption(baseOption(),true);
   else chart.setOption({series:buildSeries()},{replaceMerge:['series']});
-  renderList(); syncInputs();
+  renderList(); renderDisc(); syncInputs();
 }
-async function refreshSelected(){ await Promise.all(SER.filter(s=>selected.has(s.id)).map(load)); render(false); }
+async function refreshSelected(){ if(focusId&&!selected.has(focusId)){ focusId=null; $('focusHint').textContent=''; } await Promise.all(SER.filter(s=>selected.has(s.id)).map(load)); render(false); }
 
 function renderList(){
   const q=$('q').value.trim(); const box=$('list'); box.innerHTML='';
@@ -224,11 +288,79 @@ function renderList(){
   });
 }
 
+
+/* ---------- 发现面板 ---------- */
+let L=LS.get('kl2_L',20), scope=LS.get('kl2_scope','行业'), flt='all', dsort={k:'ex',d:-1}, STATS=null, statsL=null;
+const SCOPES={'行业':['申万一级','申万二级','同花顺行业'],'申万一级':['申万一级'],'申万二级':['申万二级'],'同花顺行业':['同花顺行业'],'概念':['同花顺概念']};
+function valAt(a,i){ for(let k=i;k>=0&&k>i-6;k--) if(a[k]!=null) return a[k]; return null; }
+function calcStats(){
+  const M=RECENT[BENCH]; if(!M) return [];
+  const E=M.length-1;
+  const r=(a,len,back)=>{ const x=valAt(a,E-back), y=valAt(a,E-back-len); return x!=null&&y!=null&&y>0?x/y-1:null; };
+  const half=Math.max(2,Math.round(L/2)), sc=Math.sqrt(L/20);
+  const mL=r(M,L,0), mLb=r(M,L,half), m60=r(M,60,0);
+  const out=[];
+  SER.forEach(s=>{
+    const a=RECENT[s.id]; if(!a||s.id===BENCH) return;
+    if(a[E]==null && a[E-1]==null) return;                   // 数据过期
+    const rl=r(a,L,0), rb=r(a,L,half), r60=r(a,60,0); if(rl==null) return;
+    const ex=rl-mL, exb=rb==null?null:rb-mLb;
+    let beat=0,n=0; for(let k=E-L+1;k<=E;k++){ if(a[k]==null||a[k-1]==null||M[k]==null||M[k-1]==null) continue; n++; if(a[k]/a[k-1]>M[k]/M[k-1]) beat++; }
+    let hi=-Infinity; for(let k=E-59;k<=E;k++){ if(a[k]!=null&&M[k]!=null) hi=Math.max(hi,a[k]/M[k]); }
+    const rsNew=a[E]!=null&&M[E]!=null&&a[E]/M[E]>=hi*0.995;
+    const tr=exb==null?0:(ex-exb>0.03*sc?1:ex-exb<-0.03*sc?-1:0);
+    let tag='';
+    if(mL< -0.03*sc && rl>0) tag='ni'; else if(Math.abs(mL)<=0.03*sc && ex>=0.08*sc) tag='dl'; else if(mL>0.03*sc && ex>=0.08*sc) tag='lz'; else if(mL< -0.03*sc && ex>=0.05*sc) tag='kd';
+    out.push({s,rl,ex,r60:r60==null?null:r60,ex60:r60==null||m60==null?null:r60-m60,tr,beat:n?beat/n:null,rsNew,tag});
+  });
+  STATS={rows:out,mL,m5:r(M,5,0),m20:r(M,20,0),m60}; statsL=L; return STATS;
+}
+const TAGTXT={ni:['逆市上涨','p-ni'],dl:['平淡中独涨','p-dl'],lz:['领涨','p-lz'],kd:['抗跌','p-kd']};
+const pct=(v,d=1)=>v==null?'—':(v>=0?'+':'')+(v*100).toFixed(d)+'%';
+const cls=v=>v==null?'':v>=0?'up':'dn';
+function renderDisc(){
+  if(!DATES.length) return;
+  if(!STATS||statsL!==L) calcStats();
+  const S=STATS; if(!S) return;
+  $('mkt').innerHTML=`中证全指 5日 <span class="${cls(S.m5)}">${pct(S.m5)}</span> · 20日 <span class="${cls(S.m20)}">${pct(S.m20)}</span> · 60日 <span class="${cls(S.m60)}">${pct(S.m60)}</span>`;
+  const groups=SCOPES[scope]||[];
+  let rows=S.rows.filter(x=>groups.includes(x.s.g));
+  if(flt==='up') rows=rows.filter(x=>x.tr>0&&x.ex>0); else if(flt!=='all') rows=rows.filter(x=>x.tag===flt);
+  const key={ex:x=>x.ex,rl:x=>x.rl,r60:x=>x.r60??-9,ex60:x=>x.ex60??-9,beat:x=>x.beat??-1}[dsort.k]||(x=>x.ex);
+  rows.sort((a,b)=>(key(b)-key(a))*(dsort.d<0?1:-1));
+  const cols=[['nm','板块'],['rl',`近${L}日`],['ex','超额'],['tr','趋势'],['beat','跑赢天数'],['r60','近60日'],['ex60','60日超额'],['rs','强弱新高'],['tag','标签']];
+  const HM=new Set(['r60','rs']);
+  $('dth').innerHTML=cols.map(([k,t])=>`<th data-k="${k}" scope="col" class="${HM.has(k)?'hm':''}">${t}${dsort.k===k?(dsort.d<0?' ▾':' ▴'):''}</th>`).join('');
+  $('dth').querySelectorAll('th').forEach(th=>th.addEventListener('click',()=>{ const k=th.dataset.k; if(!['rl','ex','beat','r60','ex60'].includes(k)) return; dsort={k,d:dsort.k===k?-dsort.d:-1}; renderDisc(); }));
+  const shown=rows.slice(0,60);
+  $('dtb').innerHTML=shown.length?shown.map(x=>{ const on=selected.has(x.s.id), col=on?colorFor(x.s.id):'transparent', t=TAGTXT[x.tag];
+    return `<tr data-id="${x.s.id}" class="${on?'sel':''}"><td class="nm"><span class="dot" style="background:${col};border-color:${on?col:''}"></span>${x.s.n}<span class="grp-tag">${x.s.p||x.s.g}</span></td>`+
+      `<td class="${cls(x.rl)}">${pct(x.rl)}</td><td class="${cls(x.ex)}">${pct(x.ex)}</td>`+
+      `<td class="${x.tr>0?'tr-up':x.tr<0?'tr-dn':''}">${x.tr>0?'↑冒头':x.tr<0?'↓退潮':'→'}</td>`+
+      `<td>${x.beat==null?'—':Math.round(x.beat*100)+'%'}</td><td class="hm ${cls(x.r60)}">${pct(x.r60)}</td><td class="${cls(x.ex60)}">${pct(x.ex60)}</td>`+
+      `<td class="hm">${x.rsNew?'是':''}</td><td>${t?`<span class="pill ${t[1]}">${t[0]}</span>`:''}</td></tr>`; }).join('')
+    :`<tr><td colspan="9" class="nm" style="color:var(--muted);padding:12px 8px">当前筛选下没有板块。换一个周期或筛选条件试试。</td></tr>`;
+  $('dtb').querySelectorAll('tr[data-id]').forEach(tr=>tr.addEventListener('click',()=>{ const id=tr.dataset.id; selected.has(id)?selected.delete(id):selected.add(id); releaseColors(); LS.set('kl2_sel',[...selected]); refreshSelected(); }));
+}
+function initDisc(){
+  const present=new Set(SER.map(s=>s.g));
+  const sc=Object.keys(SCOPES).filter(k=>SCOPES[k].some(g=>present.has(g)));
+  if(!sc.includes(scope)) scope=sc[0];
+  $('scope').innerHTML=sc.map(k=>`<button data-s="${k}" class="${k===scope?'on':''}">${k==='行业'?'全部行业':k}</button>`).join('');
+  $('scope').querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{ scope=b.dataset.s; LS.set('kl2_scope',scope); $('scope').querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b)); renderDisc(); }));
+  $('per').querySelectorAll('button').forEach(b=>{ b.classList.toggle('on',+b.dataset.l===L); b.addEventListener('click',()=>{ L=+b.dataset.l; LS.set('kl2_L',L); $('per').querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b)); renderDisc(); }); });
+  $('flt').querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{ flt=b.dataset.f; $('flt').querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b)); renderDisc(); }));
+}
+
 function syncInputs(){ if(!DATES.length) return; $('d0').value=DATES[win[0]]; $('d1').value=DATES[win[1]]; }
 function setWin(a,b){ a=Math.max(0,Math.min(a,DATES.length-1)); b=Math.max(a,Math.min(b,DATES.length-1)); chart.dispatchAction({type:'dataZoom',startValue:a,endValue:b}); }
 function idxOnOrAfter(d){ let lo=0,hi=DATES.length-1; while(lo<hi){const m=(lo+hi)>>1; if(DATES[m]<d) lo=m+1; else hi=m;} return lo; }
 function idxOnOrBefore(d){ let i=idxOnOrAfter(d); if(i<DATES.length && DATES[i]===d) return i; return Math.max(0,i-1); }
 
+/* 点曲线高亮，其他变淡；再点同一条或点空白处恢复 */
+function setFocus(id){ focusId=(id&&id!==focusId)?id:null; render(false); $('focusHint').textContent=focusId?`已高亮：${BYID[focusId].label}（再点一次或点空白处恢复）`:''; }
+chart.on('click',p=>{ const s=BYLABEL[p.seriesName]; if(s) setFocus(s.id); });
+chart.getZr().on('click',e=>{ if(!e.target && focusId) setFocus(null); });
 let raf=0;
 chart.on('datazoom',()=>{ const o=chart.getOption().dataZoom[0]; const a=Math.round(o.startValue), b=Math.round(o.endValue);
   if(a===win[0]&&b===win[1]) return; win=[a,b]; cancelAnimationFrame(raf); raf=requestAnimationFrame(()=>render(false)); });
@@ -245,7 +377,9 @@ $('sort').addEventListener('click',()=>{ sortByRet=!sortByRet; $('sort').classLi
 $('clear').addEventListener('click',()=>{ selected=new Set([BENCH]); releaseColors(); LS.set('kl2_sel',[...selected]); render(false); });
 new MutationObserver(()=>render(true)).observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']});
 matchMedia('(prefers-color-scheme: dark)').addEventListener('change',()=>render(true));
-window.addEventListener('resize',()=>chart.resize());
+let wasMob=innerWidth<=760;
+window.addEventListener('resize',()=>{ chart.resize(); const m=innerWidth<=760; if(m!==wasMob){ wasMob=m; render(true); } });
+try{ new ResizeObserver(()=>chart.resize()).observe(document.getElementById('chart')); }catch(e){}
 
 Promise.all([fetch('data/meta.json').then(r=>r.json()), fetch('data/recent.json').then(r=>r.json())]).then(async ([m,rec])=>{
   DATES=m.cal; R0=m.r0; RECENT=rec;
@@ -258,6 +392,7 @@ Promise.all([fetch('data/meta.json').then(r=>r.json()), fetch('data/recent.json'
   const cnt={}; SER.forEach(s=>cnt[s.g]=(cnt[s.g]||0)+1);
   $('asof').textContent=`数据截至 ${m.asof} · 每个交易日北京时间 17:40 后自动更新 · `+Object.entries(cnt).map(([g,c])=>`${g} ${c}`).join('、');
   $('m-line').classList.toggle('on',mode==='line'); $('m-candle').classList.toggle('on',mode==='candle');
+  initDisc();
   await Promise.all(SER.filter(s=>selected.has(s.id)).map(load));
   render(true);
 }).catch(()=>{ $('asof').textContent='数据没有加载成功，请刷新页面'; });

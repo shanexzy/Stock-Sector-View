@@ -18,6 +18,8 @@ jobs:
   build:
     runs-on: ubuntu-latest
     timeout-minutes: 120
+    env:
+      CF_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
     steps:
       - uses: actions/checkout@v4
 
@@ -48,6 +50,29 @@ jobs:
       - name: 生成网页数据
         run: python scripts/build.py
 
+      # ---- 发布到 Cloudflare Pages（国内访问用）。没填 Cloudflare 密钥时自动跳过 ----
+      - name: 创建 Cloudflare Pages 项目（只在第一次需要，已存在会报错，忽略即可）
+        if: ${{ env.CF_TOKEN != '' }}
+        continue-on-error: true
+        uses: cloudflare/wrangler-action@v3
+        env:
+          CF_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: pages project create stock-sector-view --production-branch=main
+
+      - name: 发布到 Cloudflare Pages
+        if: ${{ env.CF_TOKEN != '' }}
+        uses: cloudflare/wrangler-action@v3
+        env:
+          CF_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: pages deploy _site --project-name=stock-sector-view --branch=main --commit-dirty=true
+
+      # ---- 同时发布到 GitHub Pages（海外访问用）----
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:

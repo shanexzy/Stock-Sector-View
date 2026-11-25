@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>板块相对走势对比</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* 布局：左侧板块清单（勾选+区间涨幅），右侧归一化走势图；顶部是区间与显示方式 */
+:root{
+  --bg:#f4f5f7; --panel:#ffffff; --ink:#1b2230; --muted:#6b7385; --line:#e2e5eb;
+  --accent:#2a55c9; --up:#d23b3b; --down:#16955a; --bench:#8a93a6;
+  --font-body:"Noto Sans SC","PingFang SC","Microsoft YaHei",system-ui,sans-serif;
+  --font-num:"IBM Plex Mono",ui-monospace,"SFMono-Regular",Consolas,monospace;
+  color-scheme:light;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#11151c; --panel:#181d26; --ink:#e4e8f0; --muted:#8d96a8; --line:#283040;
+    --accent:#7d9cf0; --up:#f06a6a; --down:#3cc183; --bench:#7b8498; color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#11151c; --panel:#181d26; --ink:#e4e8f0; --muted:#8d96a8; --line:#283040;
+  --accent:#7d9cf0; --up:#f06a6a; --down:#3cc183; --bench:#7b8498; color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{background:var(--bg);color:var(--ink);font-family:var(--font-body);font-size:14px;display:flex;flex-direction:column}
+header{display:flex;flex-wrap:wrap;align-items:center;gap:12px 20px;padding:12px 16px;border-bottom:1px solid var(--line);background:var(--panel)}
+h1{font-size:17px;margin:0;font-weight:700;text-wrap:balance}
+.asof{color:var(--muted);font-size:12px}
+.grp{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.grp label.t{color:var(--muted);font-size:12px}
+button,.btn{white-space:nowrap;font:inherit;font-size:13px;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:4px 10px;cursor:pointer}
+button:hover,.btn:hover{border-color:var(--accent)}
+button.on{background:var(--accent);border-color:var(--accent);color:#fff}
+button:focus-visible,input:focus-visible,.btn:focus-within{outline:2px solid var(--accent);outline-offset:1px}
+input[type=date],input[type=search]{font:inherit;font-size:13px;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:3px 6px}
+main{flex:1;min-height:0;display:grid;grid-template-columns:270px minmax(0,1fr)}
+aside{border-right:1px solid var(--line);background:var(--panel);display:flex;flex-direction:column;min-height:0}
+.side-top{padding:10px 12px;display:flex;flex-direction:column;gap:8px;border-bottom:1px solid var(--line)}
+.side-top .row{display:flex;gap:6px;align-items:center}
+.side-top input[type=search]{flex:1;min-width:0}
+#list{overflow:auto;flex:1;padding:4px 0 12px}
+.gh{font:inherit;font-size:12px;color:var(--muted);padding:10px 12px 4px;display:flex;justify-content:space-between;width:100%;background:none;border:0;border-radius:0;cursor:pointer;text-align:left}
+.gh:hover{color:var(--ink)}
+.tagp{color:var(--muted);font-size:11px;margin-left:4px}
+.item{display:grid;grid-template-columns:18px 12px 1fr auto;align-items:center;gap:8px;padding:4px 12px;cursor:pointer}
+.item:hover{background:var(--bg)}
+.item input{margin:0}
+.sw{width:10px;height:10px;border-radius:2px;background:transparent;border:1px solid var(--line)}
+.ret{font-family:var(--font-num);font-variant-numeric:tabular-nums;font-size:12px}
+.up{color:var(--up)} .dn{color:var(--down)}
+.chartwrap{display:flex;flex-direction:column;min-height:0;padding:8px 12px 4px}
+#chart{flex:1;min-height:360px}
+.note{color:var(--muted);font-size:12px;padding:2px 4px 8px;line-height:1.6}
+#msg{color:var(--accent);font-size:12px;min-height:1em}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+@media (max-width:760px){
+  main{grid-template-columns:1fr;grid-template-rows:240px minmax(420px,1fr)}
+  aside{border-right:0;border-bottom:1px solid var(--line)}
+}
+</style>
+</head>
+<body>
+<header>
+  <div>
+    <h1>板块相对走势对比</h1>
+    <div class="asof" id="asof">数据加载中…</div>
+  </div>
+  <div class="grp" role="group" aria-label="显示方式">
+    <label class="t">显示</label>
+    <button id="m-line" class="on">折线</button>
+    <button id="m-candle">K线</button>
+  </div>
+  <div class="grp" role="group" aria-label="快速区间">
+    <label class="t">区间</label>
+    <button data-m="1">1月</button><button data-m="3">3月</button><button data-m="6">6月</button>
+    <button data-m="12">1年</button><button data-m="36">3年</button><button data-m="0">全部</button>
+  </div>
+  <div class="grp">
+    <label class="t" for="d0">从</label><input type="date" id="d0">
+    <label class="t" for="d1">到</label><input type="date" id="d1">
+  </div>
+</header>
+<main>
+  <aside>
+    <div class="side-top">
+      <div class="row">
+        <input type="search" id="q" placeholder="搜索，如 半导体、航天、机器人" aria-label="搜索板块">
+      </div>
+      <div class="row">
+        <button id="sort">按涨幅排序</button>
+        <button id="clear">清空</button>
+      </div>
+      <div id="msg"></div>
+    </div>
+    <div id="list"></div>
+  </aside>
+  <div class="chartwrap">
+    <div id="chart"></div>
+    <div class="note">每条线都按当前可见区间单独缩放：区间内最高点为 1，最低点为 0（K线用最高价和最低价，折线用收盘价）。拖动下方滑块、在图上滚动滚轮或点上方按钮都能改变区间，缩放会随之重算。左侧数字是该板块在当前区间的实际涨跌幅（红涨绿跌），点"按涨幅排序"可以找出这段时间最强的板块。K线模式下空心为阳线、实心为阴线。中证全指为灰色虚线，作为市场参照。数据来源：申万宏源（申万行业指数）、东方财富（行业与概念板块、宽基指数）。</div>
+  </div>
+</main>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/echarts/5.4.3/echarts.min.js"></script>
+<script>
+(function(){
+const PALETTE=['#2a55c9','#d9822b','#8e44ad','#c0392b','#16a085','#b8860b','#e84393','#0f7ab8','#6d8b1f','#7f5539','#5b6bd6','#d35400'];
+const BENCH='idx_sh000985';
+const SUFFIX={'申万二级':'·申万二级','东财行业':'·东财','东财概念':'·概念'};
+const LS={get(k,d){try{const v=localStorage.getItem(k);return v==null?d:JSON.parse(v)}catch(e){return d}},
+          set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}};
+const DEFAULT=[BENCH,'sw1_801780','sw1_801110','sw1_801080','sw1_801740'];
+let DATES=[], R0=0, SER=[], BYID={}, BYLABEL={}, RECENT={};
+let selected=new Set(LS.get('kl2_sel',DEFAULT));
+let mode=LS.get('kl_mode','line');
+let sortByRet=false; let win=[0,0];
+const openGroups=new Set(LS.get('kl2_open',['宽基指数','申万一级']));
+const colorOf={};
+const chart=echarts.init(document.getElementById('chart'));
+const css=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const $=id=>document.getElementById(id);
+
+function colorFor(id){
+  if(id===BENCH) return css('--bench');
+  if(!colorOf[id]){ const used=new Set(Object.values(colorOf)); colorOf[id]=PALETTE.find(c=>!used.has(c))||PALETTE[Object.keys(colorOf).length%PALETTE.length]; }
+  return colorOf[id];
+}
+function releaseColors(){ Object.keys(colorOf).forEach(id=>{ if(!selected.has(id)) delete colorOf[id]; }); }
+
+async function load(s){
+  if(s.c||s.loading) return s.loading;
+  s.loading=fetch(`data/s/${s.id}.json`).then(r=>r.json()).then(j=>{
+    const pad=new Array(j.i0).fill(null);
+    s.o=pad.concat(j.o); s.h=pad.concat(j.h); s.l=pad.concat(j.l); s.c=pad.concat(j.c);
+    ['o','h','l','c'].forEach(k=>{ while(s[k].length<DATES.length) s[k].push(null); });
+  }).catch(()=>{ s.failed=true; });
+  return s.loading;
+}
+
+function firstIdx(a,from,to){for(let i=from;i<=to;i++) if(a[i]!=null) return i; return -1;}
+function lastIdx(a,from,to){for(let i=to;i>=from;i--) if(a[i]!=null) return i; return -1;}
+function winRet(s){
+  const [a,b]=win; let arr=s.c, off=0;
+  if(!arr){ if(a<R0||!RECENT[s.id]) return null; arr=RECENT[s.id]; off=R0; }
+  const i=firstIdx(arr,a-off,b-off), j=lastIdx(arr,a-off,b-off); if(i<0||j<=i) return null; return arr[j]/arr[i]-1;
+}
+function norm(s){
+  const [a,b]=win; let lo=Infinity, hi=-Infinity;
+  const L=mode==='candle'?s.l:s.c, H=mode==='candle'?s.h:s.c;
+  for(let i=a;i<=b;i++){ const l=L[i]??s.c[i], h=H[i]??s.c[i]; if(l!=null&&l<lo) lo=l; if(h!=null&&h>hi) hi=h; }
+  const span=hi-lo; return v=>v==null||!isFinite(span)||span<=0?null:(v-lo)/span;
+}
+
+function buildSeries(){
+  const out=[];
+  SER.filter(s=>selected.has(s.id)&&s.c).forEach(s=>{
+    const f=norm(s), col=colorFor(s.id), bench=s.id===BENCH;
+    if(mode==='candle' && !bench){
+      out.push({name:s.label,type:'candlestick',large:false,progressive:0,barWidth:'55%',barMaxWidth:14,
+        data:s.c.map((c,i)=>{const o=s.o[i]??c,h=s.h[i]??c,l=s.l[i]??c; return c==null?'-':[f(o),f(c),f(l),f(h)];}),
+        itemStyle:{color:'transparent',color0:col,borderColor:col,borderColor0:col,borderWidth:1.4}});
+    } else {
+      out.push({name:s.label,type:'line',data:s.c.map(v=>{const x=f(v);return x==null?'-':x;}),showSymbol:false,connectNulls:false,
+        lineStyle:{width:bench?1.6:1.8,color:col,type:bench?'dashed':'solid'},itemStyle:{color:col},z:bench?1:2,
+        endLabel:{show:true,formatter:'{a}',color:col,fontSize:11}});
+    }
+  });
+  return out;
+}
+
+function baseOption(){
+  const ink=css('--ink'), muted=css('--muted'), line=css('--line'), acc=css('--accent');
+  return {
+    animation:false,
+    grid:{left:44,right:96,top:20,bottom:70},
+    tooltip:{trigger:'axis',axisPointer:{type:'cross',label:{backgroundColor:acc}},backgroundColor:css('--panel'),borderColor:line,textStyle:{color:ink,fontSize:12},
+      formatter:ps=>{ if(!ps.length) return ''; const i=ps[0].dataIndex; const rows=[];
+        ps.forEach(p=>{ const s=BYLABEL[p.seriesName]; if(!s||!s.c||s.c[i]==null) return;
+          const v=p.seriesType==='candlestick'?p.data[2]:p.data; const i0=firstIdx(s.c,win[0],win[1]); const r=i0>=0?s.c[i]/s.c[i0]-1:null;
+          rows.push({n:s.label,v:typeof v==='number'?v:null,c:s.c[i],r,col:colorFor(s.id)}); });
+        rows.sort((x,y)=>(y.v??-1)-(x.v??-1));
+        return `<div style="font-weight:600;margin-bottom:4px">${DATES[i]}</div>`+rows.map(r=>`<div style="display:flex;gap:10px;justify-content:space-between"><span><span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:${r.col};margin-right:6px"></span>${r.n}</span><span style="font-family:var(--font-num)">${r.v==null?'-':r.v.toFixed(2)} · ${r.c.toFixed(2)} · <span style="color:${r.r>=0?css('--up'):css('--down')}">${r.r==null?'':(r.r>=0?'+':'')+(r.r*100).toFixed(1)+'%'}</span></span></div>`).join('')+`<div style="color:${muted};margin-top:4px">位置 · 收盘 · 自区间起点涨跌</div>`;}},
+    xAxis:{type:'category',data:DATES,boundaryGap:true,axisLine:{lineStyle:{color:line}},axisLabel:{color:muted},axisTick:{show:false},splitLine:{show:false}},
+    yAxis:{type:'value',min:0,max:1,interval:0.25,axisLabel:{color:muted,formatter:v=>v.toFixed(2)},splitLine:{lineStyle:{color:line}}},
+    dataZoom:[{type:'inside',xAxisIndex:0,filterMode:'none',startValue:win[0],endValue:win[1]},
+              {type:'slider',xAxisIndex:0,filterMode:'none',startValue:win[0],endValue:win[1],height:26,bottom:18,borderColor:line,
+               textStyle:{color:muted},fillerColor:'rgba(120,140,200,0.15)',handleStyle:{color:acc,borderColor:acc},
+               dataBackground:{lineStyle:{color:muted,opacity:.4},areaStyle:{color:muted,opacity:.1}}}],
+    series:buildSeries()
+  };
+}
+
+function render(full){
+  if(full) chart.setOption(baseOption(),true);
+  else chart.setOption({series:buildSeries()},{replaceMerge:['series']});
+  renderList(); syncInputs();
+}
+async function refreshSelected(){ await Promise.all(SER.filter(s=>selected.has(s.id)).map(load)); render(false); }
+
+function renderList(){
+  const q=$('q').value.trim(); const box=$('list'); box.innerHTML='';
+  const groups={}; SER.forEach(s=>{ if(q && !(s.n.includes(q)||s.p.includes(q))) return; (groups[s.g]=groups[s.g]||[]).push(s); });
+  Object.entries(groups).forEach(([g,arr])=>{
+    const open=q?true:openGroups.has(g);
+    const h=document.createElement('button'); h.className='gh'; h.setAttribute('aria-expanded',open);
+    h.innerHTML=`<span>${open?'▾':'▸'} ${g}（${arr.length}）</span><span>区间涨跌</span>`;
+    h.addEventListener('click',()=>{ openGroups.has(g)?openGroups.delete(g):openGroups.add(g); LS.set('kl2_open',[...openGroups]); renderList(); });
+    box.appendChild(h);
+    if(!open) return;
+    let rows=arr.map(s=>({s,r:winRet(s)}));
+    if(sortByRet) rows.sort((a,b)=>(b.r??-9)-(a.r??-9));
+    const frag=document.createDocumentFragment();
+    rows.forEach(({s,r})=>{
+      const row=document.createElement('label'); row.className='item';
+      const on=selected.has(s.id);
+      row.innerHTML=`<input type="checkbox" ${on?'checked':''} aria-label="${s.label}"><span class="sw" style="${on?`background:${colorFor(s.id)};border-color:${colorFor(s.id)}`:''}"></span><span>${s.n}${s.p?`<span class="tagp">${s.p}</span>`:''}</span><span class="ret ${r==null?'':r>=0?'up':'dn'}">${r==null?'—':(r>=0?'+':'')+(r*100).toFixed(1)+'%'}</span>`;
+      row.querySelector('input').addEventListener('change',e=>{ e.target.checked?selected.add(s.id):selected.delete(s.id); releaseColors(); LS.set('kl2_sel',[...selected]); refreshSelected(); });
+      frag.appendChild(row);
+    });
+    box.appendChild(frag);
+  });
+}
+
+function syncInputs(){ if(!DATES.length) return; $('d0').value=DATES[win[0]]; $('d1').value=DATES[win[1]]; }
+function setWin(a,b){ a=Math.max(0,Math.min(a,DATES.length-1)); b=Math.max(a,Math.min(b,DATES.length-1)); chart.dispatchAction({type:'dataZoom',startValue:a,endValue:b}); }
+function idxOnOrAfter(d){ let lo=0,hi=DATES.length-1; while(lo<hi){const m=(lo+hi)>>1; if(DATES[m]<d) lo=m+1; else hi=m;} return lo; }
+function idxOnOrBefore(d){ let i=idxOnOrAfter(d); if(i<DATES.length && DATES[i]===d) return i; return Math.max(0,i-1); }
+
+let raf=0;
+chart.on('datazoom',()=>{ const o=chart.getOption().dataZoom[0]; const a=Math.round(o.startValue), b=Math.round(o.endValue);
+  if(a===win[0]&&b===win[1]) return; win=[a,b]; cancelAnimationFrame(raf); raf=requestAnimationFrame(()=>render(false)); });
+document.querySelectorAll('[data-m]').forEach(btn=>btn.addEventListener('click',()=>{
+  const m=+btn.dataset.m, b=DATES.length-1; if(!m){ setWin(0,b); return; }
+  const d=new Date(DATES[b]); d.setMonth(d.getMonth()-m); setWin(idxOnOrAfter(d.toISOString().slice(0,10)),b); }));
+$('d0').addEventListener('change',e=>{ if(e.target.value) setWin(idxOnOrAfter(e.target.value),win[1]); });
+$('d1').addEventListener('change',e=>{ if(e.target.value) setWin(win[0],idxOnOrBefore(e.target.value)); });
+function setMode(m){ mode=m; LS.set('kl_mode',m); $('m-line').classList.toggle('on',m==='line'); $('m-candle').classList.toggle('on',m==='candle'); render(false); }
+$('m-line').addEventListener('click',()=>setMode('line'));
+$('m-candle').addEventListener('click',()=>setMode('candle'));
+let qt=0; $('q').addEventListener('input',()=>{ clearTimeout(qt); qt=setTimeout(renderList,120); });
+$('sort').addEventListener('click',()=>{ sortByRet=!sortByRet; $('sort').classList.toggle('on',sortByRet); renderList(); });
+$('clear').addEventListener('click',()=>{ selected=new Set([BENCH]); releaseColors(); LS.set('kl2_sel',[...selected]); render(false); });
+new MutationObserver(()=>render(true)).observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']});
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change',()=>render(true));
+window.addEventListener('resize',()=>chart.resize());
+
+Promise.all([fetch('data/meta.json').then(r=>r.json()), fetch('data/recent.json').then(r=>r.json())]).then(async ([m,rec])=>{
+  DATES=m.cal; R0=m.r0; RECENT=rec;
+  SER=m.list.map(x=>({id:x.id,n:x.n,g:x.g,p:x.p||'',label:x.n+(SUFFIX[x.g]||'')}));
+  SER.forEach(s=>{BYID[s.id]=s; BYLABEL[s.label]=s;});
+  [...selected].forEach(id=>{ if(!BYID[id]) selected.delete(id); });
+  if(!selected.size) DEFAULT.forEach(id=>BYID[id]&&selected.add(id));
+  const b=DATES.length-1, d=new Date(DATES[b]); d.setMonth(d.getMonth()-6);
+  win=[idxOnOrAfter(d.toISOString().slice(0,10)),b];
+  const cnt={}; SER.forEach(s=>cnt[s.g]=(cnt[s.g]||0)+1);
+  $('asof').textContent=`数据截至 ${m.asof} · 每个交易日北京时间 17:40 后自动更新 · `+Object.entries(cnt).map(([g,c])=>`${g} ${c}`).join('、');
+  $('m-line').classList.toggle('on',mode==='line'); $('m-candle').classList.toggle('on',mode==='candle');
+  await Promise.all(SER.filter(s=>selected.has(s.id)).map(load));
+  render(true);
+}).catch(()=>{ $('asof').textContent='数据没有加载成功，请刷新页面'; });
+})();
+</script>
+</body>
+</html>

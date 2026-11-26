@@ -69,35 +69,42 @@ def save(group, code, new, old=None):
     for c in ['open', 'high', 'low', 'close']: df[c] = pd.to_numeric(df[c], errors='coerce').round(3)
     df.to_csv(path(group, code), index=False)
 
+YEARS = {'sw_daily': 10, 'index_daily': 10, 'ths_daily': 6}
+
 def history(api, code, start):
-    parts = [q(api, ts_code=code, start_date=a, end_date=b) for a, b in chunks(start, today())]
+    parts = [q(api, ts_code=code, start_date=a, end_date=b) for a, b in chunks(start, today(), YEARS.get(api, 5))]
     parts = [p for p in parts if p is not None and len(p)]
     return norm(pd.concat(parts)) if parts else None
 
 def update_group(group, api, codes, cal):
-    """codes: list of ts_code。缺历史的按代码抓；其余按交易日批量补。"""
+    """codes: list of ts_code。缺历史的按代码抓；其余按交易日批量补。
+    已停更的指数（最后日期比最近交易日早 60 个交易日以上）不再更新，也不拖慢其他指数。"""
     old = {c: load(group, c) for c in codes}
     for c in codes:
         if old[c] is None or old[c].empty:
-            save(group, c, history(api, c, START)); old[c] = load(group, c)
-    lasts = [d['date'].max() for d in old.values() if d is not None and len(d)]
-    if not lasts: return
-    lo = min(lasts).replace('-', '')
+            try:
+                save(group, c, history(api, c, START))
+            except Exception as e:
+                log('历史失败', group, c, e)
+            old[c] = load(group, c)
+    cutoff = cal[-61] if len(cal) > 61 else cal[0]
+    active = {c: d for c, d in old.items() if d is not None and len(d) and d['date'].max().replace('-', '') >= cutoff}
+    stale = [c for c, d in old.items() if d is not None and len(d) and c not in active]
+    empty = [c for c, d in old.items() if d is None or d.empty]
+    if stale or empty: log(f'{group}: 已停更 {len(stale)} 个，无数据 {len(empty)} 个（跳过）')
+    if not active: return
+    lo = min(d['date'].max() for d in active.values()).replace('-', '')
     need = [d for d in cal if d > lo]
-    if len(need) > 60:                       # 落后太多：逐个代码从最后日期补
-        for c in codes:
-            d = old[c]; s = (pd.Timestamp(d['date'].max()) - pd.Timedelta(days=5)).strftime('%Y%m%d')
-            save(group, c, history(api, c, s), d)
-        return
     got = []
     for d in need:
         df = q(api, trade_date=d)
         if df is not None and len(df): got.append(df)
     if not got: return
-    allnew = norm(pd.concat(got))
-    allnew['ts_code'] = pd.concat(got)['ts_code'].values
+    raw = pd.concat(got)
+    allnew = norm(raw.copy())
+    allnew['ts_code'] = raw['ts_code'].values
     for c, g in allnew.groupby('ts_code'):
-        if c in old: save(group, c, g.drop(columns='ts_code'), old[c])
+        if c in active: save(group, c, g.drop(columns='ts_code'), active[c])
 
 def main():
     t0 = time.time(); os.makedirs(RAW, exist_ok=True)

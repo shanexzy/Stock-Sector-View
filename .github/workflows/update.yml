@@ -2,7 +2,7 @@ name: 每日更新板块数据
 
 on:
   schedule:
-    - cron: '40 9 * * 1-5'     # 北京时间 17:40，周一到周五
+    - cron: '10 11 * * 1-5'    # 北京时间 19:10，周一到周五
   workflow_dispatch:            # 也可以在 Actions 页面手动点 Run workflow
 
 permissions:
@@ -17,9 +17,10 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 120
+    timeout-minutes: 60
     env:
       CF_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      TUSHARE_TOKEN: ${{ secrets.TUSHARE_TOKEN }}
     steps:
       - uses: actions/checkout@v4
 
@@ -30,22 +31,23 @@ jobs:
       - name: 恢复已下载的历史数据
         uses: actions/cache/restore@v4
         with:
-          path: data/raw
-          key: raw-${{ github.run_id }}
-          restore-keys: raw-
+          path: data/raw_ts
+          key: ts-${{ github.run_id }}
+          restore-keys: ts-
 
       - name: 安装依赖
-        run: pip install akshare pandas requests
+        timeout-minutes: 5
+        run: pip install --default-timeout=60 --retries 3 tushare pandas six
 
       - name: 抓取数据
-        run: python scripts/fetch.py
+        run: python scripts/fetch_ts.py
 
       - name: 保存历史数据
         if: always()
         uses: actions/cache/save@v4
         with:
-          path: data/raw
-          key: raw-${{ github.run_id }}-${{ github.run_attempt }}
+          path: data/raw_ts
+          key: ts-${{ github.run_id }}-${{ github.run_attempt }}
 
       - name: 生成网页数据
         run: python scripts/build.py

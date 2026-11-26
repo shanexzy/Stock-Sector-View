@@ -6,15 +6,20 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 10
     env:
       TUSHARE_TOKEN: ${{ secrets.TUSHARE_TOKEN }}
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
+
       - name: 安装依赖
-        run: pip install tushare pandas
+        timeout-minutes: 5
+        run: pip install --default-timeout=60 --retries 3 tushare pandas six
+
       - name: 测试Tushare接口
+        timeout-minutes: 5
         run: python scripts/test_tushare.py

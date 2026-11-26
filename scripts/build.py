@@ -4,10 +4,32 @@ import os, json, shutil, datetime as dt
 import pandas as pd
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-RAW = os.path.join(ROOT, 'data', 'raw')
+RAW = os.path.join(ROOT, 'data', 'raw_ts') if os.path.exists(os.path.join(ROOT, 'data', 'raw_ts', 'names.csv')) else os.path.join(ROOT, 'data', 'raw')
 OUT = os.path.join(ROOT, '_site')
 RECENT = 750          # 左侧排行用的最近交易日数（约3年）
 ORDER = ['宽基指数', '申万一级', '申万二级', '同花顺行业', '同花顺概念']
+
+def breadth(frames, cal_key):
+    """广度：成分股里近 N 日涨幅跑赢中证全指的比例。返回 {series_id: {'5':x,'20':y,'60':z}}"""
+    sd = os.path.join(RAW, 'stk'); mp = os.path.join(RAW, 'members.csv')
+    if not (os.path.isdir(sd) and os.path.exists(mp) and cal_key in frames): return {}
+    files = sorted(f for f in os.listdir(sd) if f.endswith('.csv'))
+    if len(files) < 6: return {}
+    P = pd.concat([pd.read_csv(os.path.join(sd, f)).set_index('ts_code')['pct_chg'].rename(f[:8]) for f in files], axis=1)
+    G = (1 + P.fillna(0) / 100)
+    mk = frames[cal_key][1]['close']
+    mem = pd.read_csv(mp, dtype=str)
+    out = {}
+    for L in (5, 20, 60):
+        if len(files) < L: continue
+        r = G.iloc[:, -L:].prod(axis=1) - 1
+        r = r[P.iloc[:, -L:].notna().sum(axis=1) >= L * 0.8]          # 期间大部分时间在交易
+        m = mk.iloc[-1] / mk.iloc[-1 - L] - 1
+        win = (r > m)
+        for (g, c), sub in mem.groupby(['group', 'code']):
+            v = win.reindex(sub['con_code']).dropna()
+            if len(v) >= 3: out.setdefault(f'{g}_{c}', {})[str(L)] = round(float(v.mean()), 3)
+    return out
 
 def main():
     if os.path.exists(OUT): shutil.rmtree(OUT)
@@ -24,7 +46,7 @@ def main():
         frames[f'{r.group}_{r.code}'] = (r, df.set_index('date'))
 
     # 交易日历：用中证全指；没有就用所有日期的并集
-    cal_key = 'idx_sh000985'
+    cal_key = 'idx_000985.CSI' if 'idx_000985.CSI' in frames else 'idx_sh000985'
     cal = sorted(frames[cal_key][1].index) if cal_key in frames else sorted(set().union(*[set(f.index) for _, f in frames.values()]))
     pos = {d: i for i, d in enumerate(cal)}
     n = len(cal); r0 = max(0, n - RECENT)
@@ -47,6 +69,9 @@ def main():
             if pos[d] >= r0: c[pos[d] - r0] = rnd(v)
         recent[sid] = c
 
+    br = breadth(frames, cal_key)
+    for x in lst:
+        if x['id'] in br: x['br'] = br[x['id']]
     lst.sort(key=lambda x: (ORDER.index(x['g']) if x['g'] in ORDER else 99, x['p'], x['n']))
     meta = {'asof': cal[-1], 'built': dt.datetime.now(dt.timezone.utc).strftime('%Y-%m-%d %H:%M UTC'), 'cal': cal, 'r0': r0, 'list': lst}
     with open(os.path.join(OUT, 'data', 'meta.json'), 'w', encoding='utf-8') as f:

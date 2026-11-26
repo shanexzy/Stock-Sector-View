@@ -158,24 +158,24 @@ table.dt{border-collapse:collapse;width:100%;font-size:12.5px}
         </div>
       </div>
       <div class="disc-body"><table class="dt"><thead><tr id="dth"></tr></thead><tbody id="dtb"></tbody></table></div>
-      <div class="disc-foot">超额 = 板块涨幅减中证全指涨幅。趋势比较现在的超额和半个周期前的超额：↑冒头表示在变强，↓退潮表示在变弱。跑赢天数 = 周期内单日跑赢大盘的天数占比，越高说明涨得越稳，不是靠一两天拉起来的。点一行就把它加进下面的走势图，再点一次移除。这张表只帮你发现，不预测之后还会不会涨。</div>
+      <div class="disc-foot">超额 = 板块涨幅减中证全指涨幅。趋势比较现在的超额和半个周期前的超额：↑冒头表示在变强，↓退潮表示在变弱。跑赢天数 = 周期内单日跑赢大盘的天数占比，越高说明涨得越稳，不是靠一两天拉起来的。广度 = 板块成分股里这段时间跑赢大盘的比例，越高说明是普涨，不是少数几只拉起来的。点一行就把它加进下面的走势图，再点一次移除。这张表只帮你发现，不预测之后还会不会涨。</div>
     </section>
     <div class="focus-hint" id="focusHint" aria-live="polite"></div>
     <div id="chart"></div>
-    <div class="note">每条线都按当前可见区间单独缩放：区间内最高点为 1，最低点为 0（K线用最高价和最低价，折线用收盘价）。拖动下方滑块、在图上滚动滚轮或点上方按钮都能改变区间，缩放会随之重算。左侧数字是该板块在当前区间的实际涨跌幅（红涨绿跌），点"按涨幅排序"可以找出这段时间最强的板块。K线模式下空心为阳线、实心为阴线。中证全指为灰色虚线，作为市场参照。点某条曲线可以高亮它、其他曲线变淡，再点一次或点空白处恢复。数据来源：申万宏源（申万行业指数）、同花顺（行业与概念板块）、东方财富和腾讯（宽基指数）。</div>
+    <div class="note">每条线都按当前可见区间单独缩放：区间内最高点为 1，最低点为 0（K线用最高价和最低价，折线用收盘价）。拖动下方滑块、在图上滚动滚轮或点上方按钮都能改变区间，缩放会随之重算。左侧数字是该板块在当前区间的实际涨跌幅（红涨绿跌），点"按涨幅排序"可以找出这段时间最强的板块。K线模式下空心为阳线、实心为阴线。中证全指为灰色虚线，作为市场参照。点某条曲线可以高亮它、其他曲线变淡，再点一次或点空白处恢复。数据来源：Tushare（申万行业指数、同花顺行业与概念指数、宽基指数、个股日线与成分股）。</div>
   </div>
 </main>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/echarts/5.4.3/echarts.min.js"></script>
 <script>
 (function(){
 const PALETTE=['#2a55c9','#d9822b','#8e44ad','#c0392b','#16a085','#b8860b','#e84393','#0f7ab8','#6d8b1f','#7f5539','#5b6bd6','#d35400'];
-const BENCH='idx_sh000985';
+let BENCH='idx_000985.CSI';
 const SUFFIX={'申万二级':'·申万二级','同花顺行业':'·同花顺','同花顺概念':'·概念'};
 const LS={get(k,d){try{const v=localStorage.getItem(k);return v==null?d:JSON.parse(v)}catch(e){return d}},
           set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}};
-const DEFAULT=[BENCH,'sw1_801780','sw1_801110','sw1_801080','sw1_801740'];
+const DEFAULT_NAMES=[['宽基指数','中证全指'],['申万一级','银行'],['申万一级','家用电器'],['申万一级','电子'],['申万一级','国防军工']];
 let DATES=[], R0=0, SER=[], BYID={}, BYLABEL={}, RECENT={};
-let selected=new Set(LS.get('kl2_sel',DEFAULT));
+let selected=new Set(LS.get('kl2_sel',[]));
 let mode=LS.get('kl_mode','line');
 let sortByRet=false; let win=[0,0]; let focusId=null;
 const openGroups=new Set(LS.get('kl2_open',['宽基指数','申万一级']));
@@ -311,7 +311,8 @@ function calcStats(){
     const tr=exb==null?0:(ex-exb>0.03*sc?1:ex-exb<-0.03*sc?-1:0);
     let tag='';
     if(mL< -0.03*sc && rl>0) tag='ni'; else if(Math.abs(mL)<=0.03*sc && ex>=0.08*sc) tag='dl'; else if(mL>0.03*sc && ex>=0.08*sc) tag='lz'; else if(mL< -0.03*sc && ex>=0.05*sc) tag='kd';
-    out.push({s,rl,ex,r60:r60==null?null:r60,ex60:r60==null||m60==null?null:r60-m60,tr,beat:n?beat/n:null,rsNew,tag});
+    const brv=s.br&&s.br[String(L)]!=null?s.br[String(L)]:null;
+    out.push({s,rl,ex,r60:r60==null?null:r60,ex60:r60==null||m60==null?null:r60-m60,tr,beat:n?beat/n:null,br:brv,rsNew,tag});
   });
   STATS={rows:out,mL,m5:r(M,5,0),m20:r(M,20,0),m60}; statsL=L; return STATS;
 }
@@ -326,20 +327,20 @@ function renderDisc(){
   const groups=SCOPES[scope]||[];
   let rows=S.rows.filter(x=>groups.includes(x.s.g));
   if(flt==='up') rows=rows.filter(x=>x.tr>0&&x.ex>0); else if(flt!=='all') rows=rows.filter(x=>x.tag===flt);
-  const key={ex:x=>x.ex,rl:x=>x.rl,r60:x=>x.r60??-9,ex60:x=>x.ex60??-9,beat:x=>x.beat??-1}[dsort.k]||(x=>x.ex);
+  const key={ex:x=>x.ex,rl:x=>x.rl,r60:x=>x.r60??-9,ex60:x=>x.ex60??-9,beat:x=>x.beat??-1,br:x=>x.br??-1}[dsort.k]||(x=>x.ex);
   rows.sort((a,b)=>(key(b)-key(a))*(dsort.d<0?1:-1));
-  const cols=[['nm','板块'],['rl',`近${L}日`],['ex','超额'],['tr','趋势'],['beat','跑赢天数'],['r60','近60日'],['ex60','60日超额'],['rs','强弱新高'],['tag','标签']];
+  const cols=[['nm','板块'],['rl',`近${L}日`],['ex','超额'],['tr','趋势'],['beat','跑赢天数'],['br','广度'],['r60','近60日'],['ex60','60日超额'],['rs','强弱新高'],['tag','标签']];
   const HM=new Set(['r60','rs']);
   $('dth').innerHTML=cols.map(([k,t])=>`<th data-k="${k}" scope="col" class="${HM.has(k)?'hm':''}">${t}${dsort.k===k?(dsort.d<0?' ▾':' ▴'):''}</th>`).join('');
-  $('dth').querySelectorAll('th').forEach(th=>th.addEventListener('click',()=>{ const k=th.dataset.k; if(!['rl','ex','beat','r60','ex60'].includes(k)) return; dsort={k,d:dsort.k===k?-dsort.d:-1}; renderDisc(); }));
+  $('dth').querySelectorAll('th').forEach(th=>th.addEventListener('click',()=>{ const k=th.dataset.k; if(!['rl','ex','beat','br','r60','ex60'].includes(k)) return; dsort={k,d:dsort.k===k?-dsort.d:-1}; renderDisc(); }));
   const shown=rows.slice(0,60);
   $('dtb').innerHTML=shown.length?shown.map(x=>{ const on=selected.has(x.s.id), col=on?colorFor(x.s.id):'transparent', t=TAGTXT[x.tag];
     return `<tr data-id="${x.s.id}" class="${on?'sel':''}"><td class="nm"><span class="dot" style="background:${col};border-color:${on?col:''}"></span>${x.s.n}<span class="grp-tag">${x.s.p||x.s.g}</span></td>`+
       `<td class="${cls(x.rl)}">${pct(x.rl)}</td><td class="${cls(x.ex)}">${pct(x.ex)}</td>`+
       `<td class="${x.tr>0?'tr-up':x.tr<0?'tr-dn':''}">${x.tr>0?'↑冒头':x.tr<0?'↓退潮':'→'}</td>`+
-      `<td>${x.beat==null?'—':Math.round(x.beat*100)+'%'}</td><td class="hm ${cls(x.r60)}">${pct(x.r60)}</td><td class="${cls(x.ex60)}">${pct(x.ex60)}</td>`+
+      `<td>${x.beat==null?'—':Math.round(x.beat*100)+'%'}</td><td>${x.br==null?'—':Math.round(x.br*100)+'%'}</td><td class="hm ${cls(x.r60)}">${pct(x.r60)}</td><td class="${cls(x.ex60)}">${pct(x.ex60)}</td>`+
       `<td class="hm">${x.rsNew?'是':''}</td><td>${t?`<span class="pill ${t[1]}">${t[0]}</span>`:''}</td></tr>`; }).join('')
-    :`<tr><td colspan="9" class="nm" style="color:var(--muted);padding:12px 8px">当前筛选下没有板块。换一个周期或筛选条件试试。</td></tr>`;
+    :`<tr><td colspan="10" class="nm" style="color:var(--muted);padding:12px 8px">当前筛选下没有板块。换一个周期或筛选条件试试。</td></tr>`;
   $('dtb').querySelectorAll('tr[data-id]').forEach(tr=>tr.addEventListener('click',()=>{ const id=tr.dataset.id; selected.has(id)?selected.delete(id):selected.add(id); releaseColors(); LS.set('kl2_sel',[...selected]); refreshSelected(); }));
 }
 function initDisc(){
@@ -383,14 +384,16 @@ try{ new ResizeObserver(()=>chart.resize()).observe(document.getElementById('cha
 
 Promise.all([fetch('data/meta.json').then(r=>r.json()), fetch('data/recent.json').then(r=>r.json())]).then(async ([m,rec])=>{
   DATES=m.cal; R0=m.r0; RECENT=rec;
-  SER=m.list.map(x=>({id:x.id,n:x.n,g:x.g,p:x.p||'',label:x.n+(SUFFIX[x.g]||'')}));
+  SER=m.list.map(x=>({id:x.id,n:x.n,g:x.g,p:x.p||'',br:x.br||null,label:x.n+(SUFFIX[x.g]||'')}));
   SER.forEach(s=>{BYID[s.id]=s; BYLABEL[s.label]=s;});
+  if(!BYID[BENCH]){ const b=SER.find(s=>s.g==='宽基指数'&&s.n==='中证全指'); if(b) BENCH=b.id; }
   [...selected].forEach(id=>{ if(!BYID[id]) selected.delete(id); });
-  if(!selected.size) DEFAULT.forEach(id=>BYID[id]&&selected.add(id));
+  if(!selected.size) DEFAULT_NAMES.forEach(([g,n])=>{ const s=SER.find(x=>x.g===g&&x.n===n); if(s) selected.add(s.id); });
+  selected.add(BENCH);
   const b=DATES.length-1, d=new Date(DATES[b]); d.setMonth(d.getMonth()-6);
   win=[idxOnOrAfter(d.toISOString().slice(0,10)),b];
   const cnt={}; SER.forEach(s=>cnt[s.g]=(cnt[s.g]||0)+1);
-  $('asof').textContent=`数据截至 ${m.asof} · 每个交易日北京时间 17:40 后自动更新 · `+Object.entries(cnt).map(([g,c])=>`${g} ${c}`).join('、');
+  $('asof').textContent=`数据截至 ${m.asof} · 每个交易日北京时间 19:10 后自动更新 · `+Object.entries(cnt).map(([g,c])=>`${g} ${c}`).join('、');
   $('m-line').classList.toggle('on',mode==='line'); $('m-candle').classList.toggle('on',mode==='candle');
   initDisc();
   await Promise.all(SER.filter(s=>selected.has(s.id)).map(load));
